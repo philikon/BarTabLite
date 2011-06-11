@@ -1,0 +1,9 @@
+BarTab Lite (alcohol free)
+==========================
+
+Like BarTab for Firefox 3.x, but with less features. This just keeps
+your tabs from loading (via the now built-in hook in Firefox) and
+styles the not yet loaded tabs in the manner familiar to BarTab users.
+
+Restartless add-on: enable it and it will be on, disable it and it
+will be off. Pretty simple, eh?
