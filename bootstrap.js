@@ -40,8 +40,10 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/AddonManager.jsm");
 
-const RESOURCE_NAME = "bartablite";
 let unloaders = [];
+
+// This will contain the file:// uri pointing to bartab.css
+let css_uri;
 
 /**
  * Lots of rubbish that's necessary because we're a restartless add-on
@@ -51,10 +53,7 @@ function startup(data, reason) {
   Services.prefs.setIntPref("browser.sessionstore.max_concurrent_tabs", 0);
 
   AddonManager.getAddonByID(data.id, function(addon) {
-    // Set resource substitution.
-    let resource = Services.io.getProtocolHandler("resource")
-                           .QueryInterface(Ci.nsIResProtocolHandler);
-    resource.setSubstitution(RESOURCE_NAME, addon.getResourceURI(""));
+    css_uri = addon.getResourceURI("bartab.css").spec;
 
     // Register BarTabLite handler for all existing windows and windows
     // that will still be opened.
@@ -73,10 +72,6 @@ function shutdown(data, reason) {
   }
 
   Services.prefs.clearUserPref("browser.sessionstore.max_concurrent_tabs");
-
-  let resource = Services.io.getProtocolHandler("resource")
-                         .QueryInterface(Ci.nsIResProtocolHandler);
-  resource.setSubstitution(RESOURCE_NAME, null);
 
   unloaders.forEach(function(unload) {
     if (unload) {
@@ -121,9 +116,8 @@ function windowWatcher(subject, topic) {
 
 function loadIntoWindow(win) {
   // Load stylesheet.
-  let uri = "resource://bartablite/bartab.css";
   let pi = win.document.createProcessingInstruction(
-    "xml-stylesheet", "href=\"" + uri + "\" type=\"text/css\"");
+    "xml-stylesheet", "href=\"" + css_uri + "\" type=\"text/css\"");
   win.document.insertBefore(pi, win.document.firstChild);
   unloaders.push(function () {
     win.document.removeChild(pi);
