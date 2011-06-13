@@ -46,13 +46,14 @@ let unloaders = [];
 let css_uri;
 
 const ONTAB_ATTR = "bartab-ontab";
+const CONCURRENT_TABS_PREFS = "browser.sessionstore.max_concurrent_tabs";
 
 /**
  * Lots of rubbish that's necessary because we're a restartless add-on
  * (no default preferences, no chrome manifest)
  */
 function startup(data, reason) {
-  Services.prefs.setIntPref("browser.sessionstore.max_concurrent_tabs", 0);
+  Services.prefs.setIntPref(CONCURRENT_TABS_PREFS, 0);
 
   AddonManager.getAddonByID(data.id, function(addon) {
     css_uri = addon.getResourceURI("bartab.css").spec;
@@ -73,7 +74,7 @@ function shutdown(data, reason) {
     return;
   }
 
-  Services.prefs.clearUserPref("browser.sessionstore.max_concurrent_tabs");
+  Services.prefs.clearUserPref(CONCURRENT_TABS_PREFS);
 
   unloaders.forEach(function(unload) {
     if (unload) {
