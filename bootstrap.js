@@ -45,6 +45,8 @@ let unloaders = [];
 // This will contain the file:// uri pointing to bartab.css
 let css_uri;
 
+const ONTAB_ATTR = "bartab-ontab";
+
 /**
  * Lots of rubbish that's necessary because we're a restartless add-on
  * (no default preferences, no chrome manifest)
@@ -166,10 +168,10 @@ BarTabLite.prototype = {
    */
   onTabRestoring: function(aEvent) {
     let tab = aEvent.originalTarget;
-    if (tab.selected || tab.getAttribute("ontab") == "true") {
+    if (tab.selected || tab.getAttribute(ONTAB_ATTR) == "true") {
       return;
     }
-    tab.setAttribute("ontab", "true");
+    tab.setAttribute(ONTAB_ATTR, "true");
     (new BarTabRestoreProgressListener()).hook(tab);
   }
 };
@@ -198,7 +200,7 @@ BarTabRestoreProgressListener.prototype = {
   /*** nsIWebProgressListener ***/
 
   onStateChange: function (aWebProgress, aRequest, aStateFlags, aStatus) {
-    this._tab.removeAttribute("ontab");
+    this._tab.removeAttribute(ONTAB_ATTR);
     this.unhook();
   },
   onProgressChange: function () {},
