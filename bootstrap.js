@@ -46,14 +46,19 @@ let unloaders = [];
 let css_uri;
 
 const ONTAB_ATTR = "bartab-ontab";
-const CONCURRENT_TABS_PREFS = "browser.sessionstore.max_concurrent_tabs";
+const CONCURRENT_TABS_PREF = "browser.sessionstore.max_concurrent_tabs";
+const BACKUP_PREF = "extensions.bartab.backup_concurrent_tabs";
 
 /**
  * Lots of rubbish that's necessary because we're a restartless add-on
  * (no default preferences, no chrome manifest)
  */
 function startup(data, reason) {
-  Services.prefs.setIntPref(CONCURRENT_TABS_PREFS, 0);
+  if (!Services.prefs.prefHasUserValue(BACKUP_PREF)) {
+    Services.prefs.setIntPref(
+      BACKUP_PREF, Services.prefs.getIntPref(CONCURRENT_TABS_PREF));
+    Services.prefs.setIntPref(CONCURRENT_TABS_PREF, 0);
+  }
 
   AddonManager.getAddonByID(data.id, function(addon) {
     css_uri = addon.getResourceURI("bartab.css").spec;
@@ -74,7 +79,11 @@ function shutdown(data, reason) {
     return;
   }
 
-  Services.prefs.clearUserPref(CONCURRENT_TABS_PREFS);
+  if (Services.prefs.prefHasUserValue(BACKUP_PREF)) {
+    Services.prefs.setIntPref(
+      CONCURRENT_TABS_PREF, Services.prefs.getIntPref(BACKUP_PREF));
+    Services.prefs.clearUserPref(BACKUP_PREF);
+  }
 
   unloaders.forEach(function(unload) {
     if (unload) {
