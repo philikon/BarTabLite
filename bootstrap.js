@@ -66,6 +66,10 @@ function startup(data, reason) {
     Services.prefs.setIntPref(CONCURRENT_TABS_PREF, 0);
   }
 
+  if (reason != APP_STARTUP) {
+    return;
+  }
+
   AddonManager.getAddonByID(data.id, function(addon) {
     css_uri = addon.getResourceURI("bartab.css").spec;
 
