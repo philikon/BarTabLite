@@ -78,6 +78,8 @@ function shutdown(data, reason) {
       unload();
     }
   });
+  unloaders = [];
+  css_uri = null;
 }
 
 function eachWindow(callback) {
