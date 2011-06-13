@@ -40,14 +40,16 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/AddonManager.jsm");
 
-let unloaders = [];
-
 // This will contain the file:// uri pointing to bartab.css
 let css_uri;
 
 const ONTAB_ATTR = "bartab-ontab";
 const CONCURRENT_TABS_PREF = "browser.sessionstore.max_concurrent_tabs";
 const BACKUP_PREF = "extensions.bartab.backup_concurrent_tabs";
+
+// defining a include() func
+(function(global) global.include = function include(src) (
+    Services.scriptloader.loadSubScript(src, global)))(this);
 
 /**
  * Lots of rubbish that's necessary because we're a restartless add-on
@@ -63,12 +65,15 @@ function startup(data, reason) {
   AddonManager.getAddonByID(data.id, function(addon) {
     css_uri = addon.getResourceURI("bartab.css").spec;
 
+    // include utils.js
+    include(addon.getResourceURI("includes/utils.js").spec);
+
     // Register BarTabLite handler for all existing windows and windows
     // that will still be opened.
     eachWindow(loadIntoWindow);
 
     Services.ww.registerNotification(windowWatcher);
-    unloaders.push(function() {
+    unload(function() {
       Services.ww.unregisterNotification(windowWatcher);
     });
   });
@@ -85,13 +90,7 @@ function shutdown(data, reason) {
     Services.prefs.clearUserPref(BACKUP_PREF);
   }
 
-  unloaders.forEach(function(unload) {
-    if (unload) {
-      unload();
-    }
-  });
-  unloaders = [];
-  css_uri = null;
+  unload();
 }
 
 function eachWindow(callback) {
@@ -133,13 +132,13 @@ function loadIntoWindow(win) {
   let pi = win.document.createProcessingInstruction(
     "xml-stylesheet", "href=\"" + css_uri + "\" type=\"text/css\"");
   win.document.insertBefore(pi, win.document.firstChild);
-  unloaders.push(function () {
+  unload(function () {
     win.document.removeChild(pi);
-  });
+  }, win);
 
   // Install BarTabLite hook.
   let barTabLite = new BarTabLite(win.gBrowser);
-  unloaders.push(barTabLite.unload.bind(barTabLite));
+  unload(barTabLite.unload.bind(barTabLite), win);
 }
 
 
