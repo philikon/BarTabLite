@@ -70,12 +70,7 @@ function startup(data, reason) {
 
     // Register BarTabLite handler for all existing windows and windows
     // that will still be opened.
-    eachWindow(loadIntoWindow);
-
-    Services.ww.registerNotification(windowWatcher);
-    unload(function() {
-      Services.ww.unregisterNotification(windowWatcher);
-    });
+    watchWindows(loadIntoWindow, "navigator:browser");
   });
 }
 
@@ -91,40 +86,6 @@ function shutdown(data, reason) {
   }
 
   unload();
-}
-
-function eachWindow(callback) {
-  let enumerator = Services.wm.getEnumerator("navigator:browser");
-  while (enumerator.hasMoreElements()) {
-    let win = enumerator.getNext();
-    if (win.document.readyState === "complete") {
-      callback(win);
-    } else {
-      runOnLoad(win, callback);
-    }
-  }
-}
-
-function runOnLoad(window, callback) {
-  window.addEventListener("load", function onLoad() {
-    window.removeEventListener("load", onLoad, false);
-    callback(window);
-  }, false);
-}
-
-function windowWatcher(subject, topic) {
-  if (topic !== "domwindowopened") {
-    return;
-  }
-  let win = subject.QueryInterface(Ci.nsIDOMWindow);
-  // We don't know the type of the window at this point yet, only when
-  // the load event has been fired.
-  runOnLoad(win, function (win) {
-    let doc = win.document.documentElement;
-    if (doc.getAttribute("windowtype") == "navigator:browser") {
-      loadIntoWindow(win);
-    }
-  });
 }
 
 function loadIntoWindow(win) {
