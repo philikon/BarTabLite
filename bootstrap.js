@@ -47,9 +47,13 @@ const ONTAB_ATTR = "bartab-ontab";
 const CONCURRENT_TABS_PREF = "browser.sessionstore.max_concurrent_tabs";
 const BACKUP_PREF = "extensions.bartab.backup_concurrent_tabs";
 
-// defining a include() func
-(function(global) global.include = function include(src) (
-    Services.scriptloader.loadSubScript(src, global)))(this);
+/**
+ * Load and execute another file.
+ */
+let GLOBAL_SCOPE = this;
+function include(src) {
+  Services.scriptloader.loadSubScript(src, GLOBAL_SCOPE);
+}
 
 /**
  * Lots of rubbish that's necessary because we're a restartless add-on
@@ -66,7 +70,7 @@ function startup(data, reason) {
     css_uri = addon.getResourceURI("bartab.css").spec;
 
     // include utils.js
-    include(addon.getResourceURI("includes/utils.js").spec);
+    include(addon.getResourceURI("utils.js").spec);
 
     // Register BarTabLite handler for all existing windows and windows
     // that will still be opened.
