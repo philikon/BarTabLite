@@ -11,10 +11,10 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is Speak Words.
+ * The Original Code is Home Dash Utility.
  *
  * The Initial Developer of the Original Code is The Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2010
+ * Portions created by the Initial Developer are Copyright (C) 2011
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
@@ -35,82 +35,44 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-/**
- * Waits for a browser window to finish loading before running the callback
- *
- * @usage runOnLoad(window, callback): Apply a callback to to run on a window when it loads.
- * @param [function] callback: 1-parameter function that gets a browser window.
- * @param [function] winType: a parameter that defines what kind of window is "browser window".
- */
-function runOnLoad(window, callback, winType) {
-  // Listen for one load event before checking the window type
-  window.addEventListener("load", function() {
-    window.removeEventListener("load", arguments.callee, false);
-
-    // Now that the window has loaded, only handle browser windows
-    if (window.document.documentElement.getAttribute("windowtype") == winType)
-      callback(window);
-  }, false);
-}
-
+"use strict";
 
 /**
- * Add functionality to existing browser windows
- *
- * @usage runOnWindows(callback): Apply a callback to each open browser window.
- * @param [function] callback: 1-parameter function that gets a browser window.
- * @param [function] winType: a parameter that defines what kind of window is "browser window".
+ * Helper that adds event listeners and remembers to remove on unload
  */
-function runOnWindows(callback, winType) {
-  // Wrap the callback in a function that ignores failures
-  function watcher(window) {
-    try {
-      callback(window);
-    }
-    catch(ex) {}
+function listen(window, node, event, func, capture) {
+  // Default to use capture
+  if (capture == null)
+    capture = true;
+
+  node.addEventListener(event, func, capture);
+  function undoListen() {
+    node.removeEventListener(event, func, capture);
   }
 
-  // Add functionality to existing windows
-  let browserWindows = Services.wm.getEnumerator(winType);
-  while (browserWindows.hasMoreElements()) {
-    // Only run the watcher immediately if the browser is completely loaded
-    let browserWindow = browserWindows.getNext();
-    if (browserWindow.document.readyState == "complete")
-      watcher(browserWindow);
-    // Wait for the window to load before continuing
-    else
-      runOnLoad(browserWindow, watcher, winType);
-  }
+  // Undo the listener on unload and provide a way to undo everything
+  let undoUnload = unload(undoListen, window);
+  return function() {
+    undoListen();
+    undoUnload();
+  };
 }
 
 /**
- * Apply a callback to each open and new browser windows.
+ * Load various packaged styles for the add-on and undo on unload
  *
- * @usage watchWindows(callback): Apply a callback to each browser window.
- * @param [function] callback: 1-parameter function that gets a browser window.
- * @param [function] winType: a parameter that defines what kind of window is "browser window". 
+ * @usage loadStyles(addon, styles): Load specified styles
+ * @param [object] addon: Add-on object from AddonManager
+ * @param [array of strings] styles: Style files to load
  */
-function watchWindows(callback, winType) {
-  // Wrap the callback in a function that ignores failures
-  function watcher(window) {
-    try {
-      callback(window);
-    }
-    catch(ex) {}
-  }
-
-  // Add functionality to existing windows
-  runOnWindows(callback, winType);
-
-  // Watch for new browser windows opening then wait for it to load
-  function windowWatcher(subject, topic) {
-    if (topic == "domwindowopened")
-      runOnLoad(subject, watcher, winType);
-  }
-  Services.ww.registerNotification(windowWatcher);
-
-  // Make sure to stop watching for windows if we're unloading
-  unload(function() Services.ww.unregisterNotification(windowWatcher));
+function loadStyles(addon, styles) {
+  let sss = Cc["@mozilla.org/content/style-sheet-service;1"].
+            getService(Ci.nsIStyleSheetService);
+  styles.forEach(function(fileName) {
+    let fileURI = addon.getResourceURI("styles/" + fileName + ".css");
+    sss.loadAndRegisterSheet(fileURI, sss.USER_SHEET);
+    unload(function() sss.unregisterSheet(fileURI, sss.USER_SHEET));
+  });
 }
 
 /**
@@ -170,4 +132,54 @@ function unload(callback, container) {
       unloaders.splice(index, 1);
   }
   return removeUnloader;
+}
+
+/**
+ * Apply a callback to each open and new browser windows.
+ *
+ * @usage watchWindows(callback): Apply a callback to each browser window.
+ * @param [function] callback: 1-parameter function that gets a browser window.
+ */
+function watchWindows(callback) {
+  // Wrap the callback in a function that ignores failures
+  function watcher(window) {
+    try {
+      // Now that the window has loaded, only handle browser windows
+      let {documentElement} = window.document;
+      if (documentElement.getAttribute("windowtype") == "navigator:browser")
+        callback(window);
+    }
+    catch(ex) {}
+  }
+
+  // Wait for the window to finish loading before running the callback
+  function runOnLoad(window) {
+    // Listen for one load event before checking the window type
+    window.addEventListener("load", function runOnce() {
+      window.removeEventListener("load", runOnce, false);
+      watcher(window);
+    }, false);
+  }
+
+  // Add functionality to existing windows
+  let windows = Services.wm.getEnumerator(null);
+  while (windows.hasMoreElements()) {
+    // Only run the watcher immediately if the window is completely loaded
+    let window = windows.getNext();
+    if (window.document.readyState == "complete")
+      watcher(window);
+    // Wait for the window to load before continuing
+    else
+      runOnLoad(window);
+  }
+
+  // Watch for new browser windows opening then wait for it to load
+  function windowWatcher(subject, topic) {
+    if (topic == "domwindowopened")
+      runOnLoad(subject);
+  }
+  Services.ww.registerNotification(windowWatcher);
+
+  // Make sure to stop watching for windows if we're unloading
+  unload(function() Services.ww.unregisterNotification(windowWatcher));
 }
