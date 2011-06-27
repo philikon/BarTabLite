@@ -46,6 +46,11 @@ let css_uri;
 const ONTAB_ATTR = "bartab-ontab";
 const CONCURRENT_TABS_PREF = "browser.sessionstore.max_concurrent_tabs";
 const BACKUP_PREF = "extensions.bartab.backup_concurrent_tabs";
+const NS_XUL = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
+
+XPCOMUtils.defineLazyServiceGetter(this, "gSessionStore",
+                                   "@mozilla.org/browser/sessionstore;1",
+                                   "nsISessionStore");
 
 /**
  * Load and execute another file.
@@ -124,6 +129,16 @@ BarTabLite.prototype = {
     this.tabBrowser = aTabBrowser;
     aTabBrowser.BarTabLite = this;
     aTabBrowser.tabContainer.addEventListener('SSTabRestoring', this, false);
+
+    let document = aTabBrowser.ownerDocument;
+    let menuitem_unloadTab = document.createElementNS(NS_XUL, "menuitem");
+    menuitem_unloadTab.setAttribute("label", "Unload Tab"); // TODO l10n
+    menuitem_unloadTab.setAttribute("tbattr", "tabbrowser-multiple");
+    menuitem_unloadTab.setAttribute(
+      "oncommand", "gBrowser.BarTabLite.unloadTab(gBrowser.mContextTab);");
+    let tabContextMenu = document.getElementById("tabContextMenu");
+    tabContextMenu.insertBefore(menuitem_unloadTab,
+                                tabContextMenu.childNodes[1]);
   },
 
   unload: function() {
@@ -151,6 +166,130 @@ BarTabLite.prototype = {
     }
     tab.setAttribute(ONTAB_ATTR, "true");
     (new BarTabRestoreProgressListener()).hook(tab);
+  },
+
+  /**
+   * Unload a tab.
+   */
+  unloadTab: function(aTab) {
+    // Ignore tabs that are already unloaded or are on the host whitelist.
+    if (aTab.getAttribute(ONTAB_ATTR) == "true") {
+      return;
+    }
+
+    let tabbrowser = this.tabBrowser;
+
+    // Make sure that we're not on this tab.  If we are, find the
+    // closest tab that isn't on the bar tab.
+    if (aTab.selected) {
+      let activeTab = this.findClosestLoadedTab(aTab);
+      if (activeTab) {
+        tabbrowser.selectedTab = activeTab;
+      }
+    }
+
+    let state = gSessionStore.getTabState(aTab);
+    let newtab = tabbrowser.addTab(null, {skipAnimation: true});
+    // If we ever support a mode where 'browser.sessionstore.max_concurrent_tabs'
+    // wasn't set to 0, we'd have to do some trickery here.
+    gSessionStore.setTabState(newtab, state);
+
+    // Move the new tab next to the one we're removing, but not in
+    // front of it as that confuses Tree Style Tab.
+    tabbrowser.moveTabTo(newtab, aTab._tPos + 1);
+
+    // Restore tree when using Tree Style Tab
+    if (tabbrowser.treeStyleTab) {
+      let parent = tabbrowser.treeStyleTab.getParentTab(aTab);
+      if (parent) {
+        tabbrowser.treeStyleTab.attachTabTo(newtab, parent,
+          {dontAnimate: true, insertBefore: aTab.nextSibling});
+      }
+      let children = tabbrowser.treeStyleTab.getChildTabs(aTab);
+      children.forEach(function(aChild) {
+        tabbrowser.treeStyleTab.attachTabTo(
+          aChild, newtab, {dontAnimate: true});
+      });
+    }
+
+    // Close the original tab.  We're taking the long way round to
+    // ensure the nsISessionStore service won't save this in the
+    // recently closed tabs.
+    if (tabbrowser._beginRemoveTab(aTab, true, null, false)) {
+      tabbrowser._endRemoveTab(aTab);
+    }
+  },
+
+  unloadOtherTabs: function(aTab) {
+    let tabbrowser = this.tabBrowser;
+
+    // Make sure we're sitting on the tab that isn't going to be unloaded.
+    if (tabbrowser.selectedTab != aTab) {
+      tabbrowser.selectedTab = aTab;
+    }
+
+    // unloadTab() mutates the tabs so the only sane thing to do is to
+    // copy the list of tabs now and then work off that list.
+    //TODO can we use Array.slice() here?
+    let tabs = [];
+    for (let i = 0; i < tabbrowser.mTabs.length; i++) {
+      tabs.push(tabbrowser.mTabs[i]);
+    }
+    for (let i = 0; i < tabs.length; i++) {
+      if (tabs[i] != aTab) {
+        this.unloadTab(tabs[i]);
+      }
+    }
+  },
+
+  /*
+   * In relation to a given tab, find the closest tab that is loaded.
+   * Note: if there's no such tab available, this will return unloaded
+   * tabs as a last resort.
+   */
+  findClosestLoadedTab: function(aTab) {
+    let tabbrowser = this.tabBrowser;
+
+    // Shortcut: if this is the only tab available, we're not going to
+    // find another active one, are we...
+    if (tabbrowser.mTabs.length == 1) {
+      return null;
+    }
+
+    // The most obvious choice would be the owner tab, if it's active.
+    if (aTab.owner
+        && Services.prefs.getBoolPref("browser.tabs.selectOwnerOnClose")
+        && aTab.owner.getAttribute(ONTAB_ATTR) != "true") {
+      return aTab.owner;
+    }
+
+    // Otherwise walk the tab list and see if we can find an active one.
+    let i = 1;
+    while ((aTab._tPos - i >= 0) ||
+         (aTab._tPos + i < tabbrowser.mTabs.length)) {
+      if (aTab._tPos + i < tabbrowser.mTabs.length) {
+        if (tabbrowser.mTabs[aTab._tPos+i].getAttribute(ONTAB_ATTR) != "true") {
+          return tabbrowser.mTabs[aTab._tPos+i];
+        }
+      }
+      if (aTab._tPos - i >= 0) {
+        if (tabbrowser.mTabs[aTab._tPos-i].getAttribute(ONTAB_ATTR) != "true") {
+          return tabbrowser.mTabs[aTab._tPos-i];
+        }
+      }
+      i++;
+    }
+
+    // Fallback: there isn't an active tab available, so we're going
+    // to have to nominate a non-active one.
+    if (aTab.owner
+        && Services.prefs.getBoolPref("browser.tabs.selectOwnerOnClose")) {
+      return aTab.owner;
+    }
+    if (aTab.nextSibling) {
+      return aTab.nextSibling;
+    }
+    return aTab.previousSibling;
   }
 };
 
