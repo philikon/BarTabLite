@@ -44,8 +44,7 @@ Cu.import("resource://gre/modules/AddonManager.jsm");
 let css_uri;
 
 const ONTAB_ATTR = "bartab-ontab";
-const CONCURRENT_TABS_PREF = "browser.sessionstore.max_concurrent_tabs";
-const BACKUP_PREF = "extensions.bartab.backup_concurrent_tabs";
+const RESTORE_ON_DEMAND_PREF = "browser.sessionstore.restore_on_demand";
 const NS_XUL = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
 
 XPCOMUtils.defineLazyServiceGetter(this, "gSessionStore",
@@ -65,26 +64,19 @@ function include(src) {
  * (no default preferences, no chrome manifest)
  */
 function startup(data, reason) {
-  if (!Services.prefs.prefHasUserValue(BACKUP_PREF)) {
-    Services.prefs.setIntPref(
-      BACKUP_PREF, Services.prefs.getIntPref(CONCURRENT_TABS_PREF));
-    Services.prefs.setIntPref(CONCURRENT_TABS_PREF, 0);
-  }
+  //TODO we should really save a backup here, even if this pref is true
+  // by default.
+  Services.prefs.setBoolPref(RESTORE_ON_DEMAND_PREF, true);
 
   if (reason != APP_STARTUP) {
     return;
   }
 
-  AddonManager.getAddonByID(data.id, function(addon) {
-    css_uri = addon.getResourceURI("bartab.css").spec;
-
-    // include utils.js
-    include(addon.getResourceURI("utils.js").spec);
-
-    // Register BarTabLite handler for all existing windows and windows
-    // that will still be opened.
-    watchWindows(loadIntoWindow, "navigator:browser");
-  });
+  css_uri = data.resourceURI.spec + "bartab.css";
+  include(data.resourceURI.spec + "utils.js");
+  // Register BarTabLite handler for all existing windows and windows
+  // that will still be opened.
+  watchWindows(loadIntoWindow, "navigator:browser");
 }
 
 function shutdown(data, reason) {
