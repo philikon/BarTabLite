@@ -6,7 +6,7 @@
     <em:bootstrap>true</em:bootstrap>
     <em:type>2</em:type>
     <em:name>BarTab Lite</em:name>
-    <em:version>1.2</em:version>
+    <em:version>1.3</em:version>
     <em:creator>Philipp von Weitershausen</em:creator>
     <em:contributor>Róman Joost (logo)</em:contributor>
     <em:contributor>Erik Vold</em:contributor>
@@ -14,8 +14,8 @@
     <em:targetApplication>
       <Description>
         <em:id>{ec8030f7-c20a-464f-9b0e-13a3a9e97384}</em:id> <!-- Firefox -->
-        <em:minVersion>4.0</em:minVersion>
-        <em:maxVersion>7.0a1</em:maxVersion>
+        <em:minVersion>19.0</em:minVersion>
+        <em:maxVersion>22.0a1</em:maxVersion>
       </Description>
     </em:targetApplication>
   </Description>
